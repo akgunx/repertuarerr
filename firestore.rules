@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //
+    // Collection: songs
+    // Document ID: songId
+    // Fields:
+    //   - title: string (required, min 1, max 100)
+    //   - artist: string (required, min 1, max 100)
+    //   - content: string (required, min 1, max 10000)
+    //   - category: string (optional)
+    //   - tags: list (optional, max 10 items)
+    //   - ownerId: string (required, immutable)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: setlists
+    // Document ID: setlistId
+    // Fields:
+    //   - name: string (required, min 1, max 100)
+    //   - songIds: list (required, max 50 items)
+    //   - ownerId: string (required, immutable)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.ownerId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email);
+    }
+
+    function isValidSong(data) {
+      return hasRequiredFields(['title', 'artist', 'content', 'ownerId', 'createdAt']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.artist is string && data.artist.size() >= 1 && data.artist.size() <= 100 &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 10000 &&
+             data.ownerId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidSetlist(data) {
+      return hasRequiredFields(['name', 'songIds', 'ownerId', 'createdAt']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.songIds is list && data.songIds.size() <= 50 &&
+             data.ownerId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /songs/{songId} {
+      // Songs are public to read for all authenticated users (repertoire sharing)
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSong(request.resource.data);
+      allow update: if isDocOwner() && isValidSong(request.resource.data) && 
+                      request.resource.data.ownerId == resource.data.ownerId &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+    }
+
+    match /setlists/{setlistId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidSetlist(request.resource.data);
+      allow update: if isDocOwner() && isValidSetlist(request.resource.data) &&
+                      request.resource.data.ownerId == resource.data.ownerId &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+    }
+  }
+}

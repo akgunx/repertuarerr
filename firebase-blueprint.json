@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Song": {
+      "title": "Song",
+      "description": "A song with lyrics and chords.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "content": { "type": "string", "description": "Markdown content with chords in brackets like [Am]" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "artist", "content", "ownerId"]
+    },
+    "Setlist": {
+      "title": "Setlist",
+      "description": "A collection of songs for a performance.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "songIds": { "type": "array", "items": { "type": "string" } },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "songIds", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/songs/{songId}": {
+      "schema": "Song",
+      "description": "Global song database (owned by users)."
+    },
+    "/setlists/{setlistId}": {
+      "schema": "Setlist",
+      "description": "User setlists."
+    }
+  }
+}

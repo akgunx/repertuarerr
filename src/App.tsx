@@ -34,10 +34,14 @@ export default function App() {
   const [viewingSong, setViewingSong] = useState<Song | null>(null);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isAddingSong, setIsAddingSong] = useState(false);
-  const [activeTab, setActiveTab] = useState<'songs' | 'setlists'>('songs');
+  const [activeTab, setActiveTab] = useState<'songs' | 'setlists'>(() => {
+    return (localStorage.getItem('repertuar_activeTab') as 'songs' | 'setlists') || 'songs';
+  });
+  const [activeSetlist, setActiveSetlist] = useState<Setlist | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' || 
@@ -83,19 +87,66 @@ export default function App() {
     return unsubscribe;
   }, [user]);
 
+  // Persistence Effect
+  useEffect(() => {
+    localStorage.setItem('repertuar_activeTab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (viewingSong) {
+      localStorage.setItem('repertuar_lastSongId', viewingSong.id || '');
+    } else {
+      localStorage.removeItem('repertuar_lastSongId');
+    }
+  }, [viewingSong]);
+
+  useEffect(() => {
+    if (activeSetlist) {
+      localStorage.setItem('repertuar_lastSetlistId', activeSetlist.id || '');
+    } else {
+      localStorage.removeItem('repertuar_lastSetlistId');
+    }
+  }, [activeSetlist]);
+
+  // Restore State Effect
+  useEffect(() => {
+    if (songs.length > 0 && !viewingSong && !activeSetlist) {
+      const lastSongId = localStorage.getItem('repertuar_lastSongId');
+      const lastSetlistId = localStorage.getItem('repertuar_lastSetlistId');
+
+      if (lastSongId) {
+        const song = songs.find(s => s.id === lastSongId);
+        if (song) setViewingSong(song);
+      }
+
+      if (lastSetlistId) {
+        const setlist = setlists.find(s => s.id === lastSetlistId);
+        if (setlist) setActiveSetlist(setlist);
+      }
+    }
+  }, [songs, setlists]);
+
   const categories = useMemo(() => {
     const cats = new Set(songs.map(s => s.category).filter(Boolean));
     return ['Tümü', ...Array.from(cats)];
   }, [songs]);
 
   const filteredSongs = useMemo(() => {
-    return songs.filter(s => {
+    let baseSongs = songs;
+    
+    if (activeSetlist) {
+      baseSongs = activeSetlist.songIds
+        .map(id => songs.find(s => s.id === id))
+        .filter((s): s is Song => !!s);
+    }
+
+    return baseSongs.filter(s => {
       const matchesSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            s.artist.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'Tümü' || s.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [songs, searchQuery, selectedCategory]);
+  }, [songs, searchQuery, selectedCategory, activeSetlist]);
 
   const handleSaveSong = async (songData: Partial<Song>) => {
     if (!user) return;
@@ -118,18 +169,40 @@ export default function App() {
 
   const handleDeleteSong = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm("Bu şarkıyı silmek istediğinize emin misiniz?")) return;
-    try {
-      await deleteDoc(doc(db, 'songs', id));
-    } catch (err) {
-      console.error("Song deletion failed", err);
-    }
+    setConfirmModal({
+      show: true,
+      title: "Şarkıyı Sil",
+      message: "Bu şarkıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'songs', id));
+          setConfirmModal(null);
+        } catch (err) {
+          console.error("Song deletion failed", err);
+        }
+      }
+    });
   };
 
   const handleOpenSetlist = (setlist: Setlist) => {
+    setActiveSetlist(setlist);
     setSearchQuery('');
     setSelectedCategory('Tümü');
     setActiveTab('songs');
+  };
+
+  const getNextSong = () => {
+    if (!viewingSong) return null;
+    const currentIndex = filteredSongs.findIndex(s => s.id === viewingSong.id);
+    if (currentIndex === -1 || currentIndex === filteredSongs.length - 1) return null;
+    return filteredSongs[currentIndex + 1];
+  };
+
+  const getPrevSong = () => {
+    if (!viewingSong) return null;
+    const currentIndex = filteredSongs.findIndex(s => s.id === viewingSong.id);
+    if (currentIndex <= 0) return null;
+    return filteredSongs[currentIndex - 1];
   };
 
   if (loading) {
@@ -237,7 +310,31 @@ export default function App() {
               className="space-y-6"
             >
               {/* Toolbar */}
-              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col gap-4">
+                {activeSetlist && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center justify-between bg-blue-500/10 dark:bg-blue-500/20 p-4 rounded-2xl border border-blue-200 dark:border-blue-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ListMusic className="w-6 h-6 text-blue-500" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Aktif Setlist</p>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">{activeSetlist.name}</h2>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setActiveSetlist(null)}
+                      className="p-2 hover:bg-blue-500/20 rounded-full text-blue-600 dark:text-blue-400 transition-colors"
+                      title="Setlistten Çık"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </motion.div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="relative w-full sm:w-96">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input 
@@ -271,6 +368,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            </div>
 
               {/* Song List */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -351,8 +449,49 @@ export default function App() {
 
       {/* Modals */}
       <AnimatePresence>
+        {confirmModal && confirmModal.show && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-3xl shadow-2xl p-6 border dark:border-gray-800 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold mb-2 dark:text-white">{confirmModal.title}</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-8">{confirmModal.message}</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-bold rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                >
+                  İptal
+                </button>
+                <button 
+                  onClick={confirmModal.onConfirm}
+                  className="flex-1 py-3 bg-red-500 text-white font-bold rounded-2xl hover:bg-red-600 shadow-lg shadow-red-100 dark:shadow-none transition-all active:scale-95"
+                >
+                  Sil
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
         {viewingSong && (
-          <SongViewer song={viewingSong} onClose={() => setViewingSong(null)} />
+          <SongViewer 
+            song={viewingSong} 
+            onClose={() => setViewingSong(null)} 
+            nextSong={getNextSong() || undefined}
+            prevSong={getPrevSong() || undefined}
+            onNavigate={setViewingSong}
+          />
         )}
         {isAddingSong && (
           <SongEditor 

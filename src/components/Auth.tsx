@@ -27,17 +27,17 @@ export const Auth: React.FC = () => {
   if (user) {
     return (
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-2 bg-white/10 dark:bg-gray-800/50 backdrop-blur-md border border-white/20 dark:border-gray-700 px-3 py-1.5 rounded-full">
           {user.photoURL ? (
             <img src={user.photoURL} alt={user.displayName || ''} className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
           ) : (
-            <User className="w-4 h-4 text-white" />
+            <User className="w-4 h-4 text-white dark:text-gray-300" />
           )}
-          <span className="text-sm font-medium text-white hidden sm:inline">{user.displayName}</span>
+          <span className="text-sm font-medium text-white dark:text-gray-200 hidden sm:inline">{user.displayName}</span>
         </div>
         <button 
           onClick={handleLogout}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
+          className="p-2 hover:bg-white/10 dark:hover:bg-gray-800 rounded-full transition-colors text-white/70 dark:text-gray-400 hover:text-white dark:hover:text-white"
           title="Çıkış Yap"
         >
           <LogOut className="w-5 h-5" />
@@ -49,7 +49,7 @@ export const Auth: React.FC = () => {
   return (
     <button 
       onClick={handleLogin}
-      className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full font-semibold hover:bg-gray-100 transition-all shadow-lg active:scale-95"
+      className="flex items-center gap-2 bg-white dark:bg-gray-800 text-black dark:text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 transition-all shadow-lg active:scale-95 border dark:border-gray-700"
     >
       <LogIn className="w-4 h-4" />
       Giriş Yap

@@ -34,7 +34,6 @@ export const SongEditor: React.FC<SongEditorProps> = ({ song, onSave, onCancel }
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !artist || !content) {
-      alert("Lütfen tüm zorunlu alanları doldurun.");
       return;
     }
     onSave({

@@ -7,9 +7,18 @@ import { motion, AnimatePresence } from 'motion/react';
 interface SongViewerProps {
   song: Song;
   onClose: () => void;
+  nextSong?: Song;
+  prevSong?: Song;
+  onNavigate?: (song: Song) => void;
 }
 
-export const SongViewer: React.FC<SongViewerProps> = ({ song, onClose }) => {
+export const SongViewer: React.FC<SongViewerProps> = ({ 
+  song, 
+  onClose, 
+  nextSong, 
+  prevSong, 
+  onNavigate 
+}) => {
   const [transpose, setTranspose] = useState(0);
   const [fontSize, setFontSize] = useState(16);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -18,6 +27,14 @@ export const SongViewer: React.FC<SongViewerProps> = ({ song, onClose }) => {
   const scrollIntervalRef = useRef<number | null>(null);
 
   const transposedContent = transposeContent(song.content, transpose);
+
+  // Reset transpose when song changes
+  useEffect(() => {
+    setTranspose(0);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [song.id]);
 
   useEffect(() => {
     if (isScrolling) {
@@ -79,7 +96,7 @@ export const SongViewer: React.FC<SongViewerProps> = ({ song, onClose }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="fixed inset-0 bg-white z-50 flex flex-col"
+      className="fixed inset-0 bg-white dark:bg-gray-950 z-50 flex flex-col transition-colors duration-300"
     >
       {/* Header */}
       <div className="bg-gray-900 text-white p-4 flex items-center justify-between shadow-lg">
@@ -87,12 +104,34 @@ export const SongViewer: React.FC<SongViewerProps> = ({ song, onClose }) => {
           <h2 className="text-xl font-bold truncate">{song.title}</h2>
           <p className="text-sm text-gray-400 truncate">{song.artist}</p>
         </div>
-        <button 
-          onClick={onClose}
-          className="ml-4 p-2 hover:bg-white/10 rounded-full transition-colors"
-        >
-          <ChevronDown className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onNavigate && (
+            <div className="flex items-center gap-1 mr-4 bg-white/10 rounded-full p-1">
+              <button 
+                disabled={!prevSong}
+                onClick={() => prevSong && onNavigate(prevSong)}
+                className="p-2 hover:bg-white/10 rounded-full disabled:opacity-20 transition-all"
+                title="Önceki Şarkı"
+              >
+                <ChevronUp className="w-5 h-5 -rotate-90" />
+              </button>
+              <button 
+                disabled={!nextSong}
+                onClick={() => nextSong && onNavigate(nextSong)}
+                className="p-2 hover:bg-white/10 rounded-full disabled:opacity-20 transition-all"
+                title="Sonraki Şarkı"
+              >
+                <ChevronUp className="w-5 h-5 rotate-90" />
+              </button>
+            </div>
+          )}
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <ChevronDown className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Controls */}
@@ -139,13 +178,44 @@ export const SongViewer: React.FC<SongViewerProps> = ({ song, onClose }) => {
       {/* Content */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white dark:bg-gray-900 selection:bg-blue-100 dark:selection:bg-blue-900/30 transition-colors"
+        className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white dark:bg-gray-950 selection:bg-blue-100 dark:selection:bg-blue-900/30 transition-colors"
         style={{ fontSize: `${fontSize}px` }}
       >
         <div className="max-w-3xl mx-auto font-mono whitespace-pre-wrap pt-12 pb-32">
           {renderContent(transposedContent)}
         </div>
       </div>
+
+      {/* Setlist Navigation Footer */}
+      {(prevSong || nextSong) && onNavigate && (
+        <div className="bg-gray-900 p-4 border-t border-white/10 flex items-center justify-between text-white">
+          <button 
+            disabled={!prevSong}
+            onClick={() => prevSong && onNavigate(prevSong)}
+            className="flex-1 flex items-center gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all disabled:opacity-20 text-left"
+          >
+            <ChevronUp className="w-5 h-5 -rotate-90 text-blue-500" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Önceki</p>
+              <p className="font-bold truncate text-sm">{prevSong?.title || '-'}</p>
+            </div>
+          </button>
+          
+          <div className="w-px h-8 bg-white/10 mx-4" />
+
+          <button 
+            disabled={!nextSong}
+            onClick={() => nextSong && onNavigate(nextSong)}
+            className="flex-1 flex items-center justify-end gap-3 p-3 hover:bg-white/5 rounded-2xl transition-all disabled:opacity-20 text-right"
+          >
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Sonraki</p>
+              <p className="font-bold truncate text-sm">{nextSong?.title || '-'}</p>
+            </div>
+            <ChevronUp className="w-5 h-5 rotate-90 text-blue-500" />
+          </button>
+        </div>
+      )}
     </motion.div>
   );
 };

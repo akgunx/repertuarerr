@@ -17,6 +17,10 @@ export const Auth: React.FC = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      // Clear all persistence data
+      localStorage.removeItem('repertuar_activeTab');
+      localStorage.removeItem('repertuar_lastSongId');
+      localStorage.removeItem('repertuar_lastSetlistId');
     } catch (err) {
       console.error("Logout failed", err);
     }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Song } from '../types';
 import { transposeContent } from '../lib/chordUtils';
-import { ChevronUp, ChevronDown, Play, Pause, RotateCcw, Type, Minus, Plus } from 'lucide-react';
+import { ChevronUp, ChevronDown, Play, Pause, RotateCcw, Type, Minus, Plus, Copy, Share2, Check, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SongViewerProps {
@@ -23,10 +23,43 @@ export const SongViewer: React.FC<SongViewerProps> = ({
   const [fontSize, setFontSize] = useState(16);
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(20); // pixels per second
+  const [copied, setCopied] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollIntervalRef = useRef<number | null>(null);
 
   const transposedContent = transposeContent(song.content, transpose);
+
+  const handleCopy = () => {
+    const text = `${song.title} - ${song.artist}\n\n${transposedContent}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = () => {
+    const text = `${song.title} - ${song.artist}\n\n${transposedContent}`;
+    if (navigator.share) {
+      navigator.share({
+        title: song.title,
+        text: text,
+      }).catch(console.error);
+    } else {
+      handleCopy();
+    }
+  };
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      setShowScrollTop(scrollRef.current.scrollTop > 300);
+    }
+  };
+
+  const scrollToTop = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   // Reset transpose when song changes
   useEffect(() => {
@@ -105,6 +138,22 @@ export const SongViewer: React.FC<SongViewerProps> = ({
           <p className="text-sm text-gray-400 truncate">{song.artist}</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-2">
+            <button 
+              onClick={handleCopy}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+              title="Kopyala"
+            >
+              {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+            </button>
+            <button 
+              onClick={handleShare}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+              title="Paylaş"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+          </div>
           {onNavigate && (
             <div className="flex items-center gap-1 mr-4 bg-white/10 rounded-full p-1">
               <button 
@@ -178,12 +227,28 @@ export const SongViewer: React.FC<SongViewerProps> = ({
       {/* Content */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white dark:bg-gray-950 selection:bg-blue-100 dark:selection:bg-blue-900/30 transition-colors"
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white dark:bg-gray-950 selection:bg-blue-100 dark:selection:bg-blue-900/30 transition-colors relative"
         style={{ fontSize: `${fontSize}px` }}
       >
         <div className="max-w-3xl mx-auto font-mono whitespace-pre-wrap pt-12 pb-32">
           {renderContent(transposedContent)}
         </div>
+
+        {/* Scroll to Top Button */}
+        <AnimatePresence>
+          {showScrollTop && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={scrollToTop}
+              className="fixed bottom-24 right-8 p-4 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition-all z-40 active:scale-95"
+            >
+              <ArrowUp className="w-6 h-6" />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Setlist Navigation Footer */}

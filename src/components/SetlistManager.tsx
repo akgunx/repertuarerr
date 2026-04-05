@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Song, Setlist } from '../types';
 import { db, collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from '../firebase';
-import { ListMusic, Plus, X, Trash2, ChevronRight, Music, Search, Save } from 'lucide-react';
+import { ListMusic, Plus, X, Trash2, ChevronRight, Music, Search, Save, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SetlistManagerProps {
@@ -13,6 +13,7 @@ interface SetlistManagerProps {
 
 export const SetlistManager: React.FC<SetlistManagerProps> = ({ songs, setlists, userId, onSelectSetlist }) => {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingSetlist, setEditingSetlist] = useState<Setlist | null>(null);
   const [newSetName, setNewSetName] = useState('');
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,21 +23,41 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ songs, setlists,
     s.artist.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!newSetName || selectedSongIds.length === 0) return;
     try {
-      await addDoc(collection(db, 'setlists'), {
-        name: newSetName,
-        songIds: selectedSongIds,
-        ownerId: userId,
-        createdAt: Timestamp.now()
-      });
-      setIsCreating(false);
-      setNewSetName('');
-      setSelectedSongIds([]);
+      if (editingSetlist) {
+        await updateDoc(doc(db, 'setlists', editingSetlist.id!), {
+          name: newSetName,
+          songIds: selectedSongIds,
+        });
+      } else {
+        await addDoc(collection(db, 'setlists'), {
+          name: newSetName,
+          songIds: selectedSongIds,
+          ownerId: userId,
+          createdAt: Timestamp.now()
+        });
+      }
+      closeModal();
     } catch (err) {
-      console.error("Setlist creation failed", err);
+      console.error("Setlist save failed", err);
     }
+  };
+
+  const closeModal = () => {
+    setIsCreating(false);
+    setEditingSetlist(null);
+    setNewSetName('');
+    setSelectedSongIds([]);
+    setSearchQuery('');
+  };
+
+  const openEdit = (set: Setlist) => {
+    setEditingSetlist(set);
+    setNewSetName(set.name);
+    setSelectedSongIds(set.songIds);
+    setIsCreating(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -107,6 +128,13 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ songs, setlists,
 
               <div className="flex items-center gap-2">
                 <button 
+                  onClick={() => openEdit(set)}
+                  className="p-2 text-gray-300 dark:text-gray-600 hover:text-blue-500 transition-colors"
+                  title="Düzenle"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button 
                   onClick={() => onSelectSetlist(set)}
                   className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-bold text-sm rounded-xl hover:bg-blue-600 hover:text-white transition-all"
                 >
@@ -149,10 +177,19 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ songs, setlists,
             >
               <div className="p-6 border-b dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
                 <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-                  <Plus className="w-5 h-5 text-blue-500" />
-                  Yeni Setlist Oluştur
+                  {editingSetlist ? (
+                    <>
+                      <Edit2 className="w-5 h-5 text-blue-500" />
+                      Setlisti Düzenle
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 text-blue-500" />
+                      Yeni Setlist Oluştur
+                    </>
+                  )}
                 </h3>
-                <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors dark:text-gray-400">
+                <button onClick={closeModal} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors dark:text-gray-400">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -217,18 +254,18 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ songs, setlists,
 
               <div className="p-6 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-end gap-3">
                 <button 
-                  onClick={() => setIsCreating(false)}
+                  onClick={closeModal}
                   className="px-6 py-2 text-gray-600 dark:text-gray-400 font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-all"
                 >
                   İptal
                 </button>
                 <button 
-                  onClick={handleCreate}
+                  onClick={handleSave}
                   disabled={!newSetName || selectedSongIds.length === 0}
                   className="px-8 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 dark:shadow-none transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  Setlisti Kaydet
+                  {editingSetlist ? 'Güncelle' : 'Setlisti Kaydet'}
                 </button>
               </div>
             </motion.div>

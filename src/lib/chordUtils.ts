@@ -46,27 +46,36 @@ export function parseRawSongText(text: string): { title: string, artist: string,
   let startIndex = 0;
 
   // Heuristic: Check first 5 lines for Title - Artist or similar patterns
+  const delimiters = [' - ', ' – ', ' — ', ' | ', ' / ', ' : '];
+  
   for (let i = 0; i < Math.min(lines.length, 5); i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Pattern: "Artist - Title" (User requested swap, so parts[0] is Artist, parts[1] is Title)
-    if (line.includes(' - ')) {
-      const parts = line.split(' - ');
-      artist = parts[0].trim();
-      title = parts[1].trim();
-      startIndex = i + 1;
-      break;
+    let found = false;
+    for (const delimiter of delimiters) {
+      if (line.includes(delimiter)) {
+        const parts = line.split(delimiter);
+        if (parts.length >= 2) {
+          artist = parts[0].trim();
+          title = parts[1].trim();
+          startIndex = i + 1;
+          found = true;
+          break;
+        }
+      }
     }
+    if (found) break;
     
     // Pattern: "Title: Something"
-    if (line.toLowerCase().startsWith('başlık:') || line.toLowerCase().startsWith('title:')) {
+    const lowerLine = line.toLowerCase();
+    if (lowerLine.startsWith('başlık:') || lowerLine.startsWith('title:') || lowerLine.startsWith('şarkı:')) {
       title = line.split(':')[1].trim();
       startIndex = i + 1;
       continue;
     }
     
-    if (line.toLowerCase().startsWith('sanatçı:') || line.toLowerCase().startsWith('artist:')) {
+    if (lowerLine.startsWith('sanatçı:') || lowerLine.startsWith('artist:') || lowerLine.startsWith('yorum:')) {
       artist = line.split(':')[1].trim();
       startIndex = i + 1;
       continue;
@@ -74,22 +83,24 @@ export function parseRawSongText(text: string): { title: string, artist: string,
   }
 
   // If we didn't find a clear pattern, use first line as title if it's short
-  if (!title && lines[0] && lines[0].length < 50 && lines[0].trim().length > 0) {
+  if (!title && lines[0] && lines[0].length < 60 && lines[0].trim().length > 0) {
     title = lines[0].trim();
     startIndex = 1;
   }
 
   // Clean up title: remove "akor", "chord", "lyrics", etc.
   if (title) {
-    title = title.replace(/\b(akor|akorlar|chord|chords|lyrics|söz|sözler|tab|tablar)\b/gi, '').replace(/\s+/g, ' ').trim();
+    title = title.replace(/\b(akor|akorlar|chord|chords|lyrics|söz|sözler|tab|tablar|official|video|klip|hd|4k)\b/gi, '').replace(/[\[\]\(\)]/g, '').replace(/\s+/g, ' ').trim();
   }
 
-  // Filter out "unimportant" lines like "Söz/Müzik:", "Akorlar:", etc.
+  // Filter out "unimportant" lines
   const filteredLines = lines.slice(startIndex).filter(line => {
     const l = line.toLowerCase().trim();
+    if (!l) return true; // Keep empty lines for spacing
     if (l.startsWith('söz:') || l.startsWith('müzik:') || l.startsWith('akorlar:')) return false;
     if (l.startsWith('lyrics:') || l.startsWith('chords:')) return false;
-    if (l.includes('www.') || l.includes('.com')) return false;
+    if (l.includes('www.') || l.includes('.com') || l.includes('.net') || l.includes('.org')) return false;
+    if (l.includes('tüm hakları saklıdır') || l.includes('abone ol') || l.includes('takip et')) return false;
     return true;
   });
 
